@@ -1,0 +1,81 @@
+:root {
+  --bg: #0a0f0d;
+  --ink: #e5e7eb;
+  --emerald: #10b981;
+  --frame: #1f2937;
+  --soft: rgba(16,185,129,0.25);
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* subtle radial glow */
+.app-radial {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(16,185,129,0.18), transparent 60%);
+}
+
+/* faint grid */
+.app-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image:
+      linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px;
+}
+
+/* terminal vibe */
+.terminal {
+  background: #000;
+  border: 1px solid rgba(16,185,129,0.3);
+  color: rgba(167, 243, 208, 0.95);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  font-family: 'VT323', ui-monospace, Menlo, Consolas, monospace;
+  box-shadow: 0 0 40px -10px rgba(16,185,129,0.45);
+}
+
+/* blinking cursor block */
+.cursor {
+  display: inline-block;
+  width: 0.6ch;
+  height: 1.1em;
+  background: rgba(16,185,129,0.9);
+  vertical-align: -0.1em;
+  animation: blink 0.9s infinite;
+}
+
+@keyframes blink {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* card look without Tailwind */
+.card-frame {
+  border: 1px solid #374151;
+  background: rgba(17, 24, 39, 0.7);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+/* headings font */
+.h-ox {
+  font-family: 'Oxanium', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.tunnels-wrap {
+  box-shadow: 0 0 24px rgba(0, 255, 153, 0.08), inset 0 0 32px rgba(0, 0, 0, 0.6);
+  background-image:
+    radial-gradient(transparent 60%, rgba(0,0,0,0.4)),
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 24px);
+  overflow: hidden;
+}
