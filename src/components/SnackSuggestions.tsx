@@ -12,20 +12,21 @@ export default function SnackSuggestions() {
 
       <div className="row g-3">
         <div className="col-12 col-md-6">
-          <SnackCard
-            title={'VX "Green Balls" - Candy Truffles'}
-            subtitle="Looks dangerous, tastes great"
-            steps={[
-              'Pulse 24 vanilla sandwich cookies into fine crumbs.',
-              'Stir in 6 oz cream cheese until a dough forms.',
-              'Tint with a few drops green gel coloring - bright but not neon.',
-              'Roll into 1-inch balls. Chill 20 minutes.',
-              'Dip in melted white chocolate. Before set, drizzle more green.',
-              'Optional: top with a single white sugar pearl. Handle… carefully.'
-            ]}
-            note="Serve in a clear tray for maximum uh oh energy."
-          />
-        </div>
+  <SnackCard
+    title="VX Gas Bomb Cookies"
+    subtitle="Dangerously delicious"
+    steps={[
+      'Whisk 1 cup butter with 1 1/2 cups sugar until light and fluffy.',
+      'Beat in 2 eggs, 1 tsp vanilla.',
+      'Fold in 3 cups flour, 1 tsp baking powder, pinch of salt.',
+      'Add green candy pieces or sour apple candies to mimic VX spheres.',
+      'Scoop into balls, bake at 350°F for 10–12 minutes.',
+      'Cool… if you dare.'
+    ]}
+    note="Serve in a glass bowl for maximum “containment breach” effect."
+  />
+</div>
+
 
         <div className="col-12 col-md-6">
           <SnackCard
@@ -41,28 +42,32 @@ export default function SnackSuggestions() {
         </div>
 
         <div className="col-12 col-md-6">
-          <SnackCard
-            title="Mason’s Scotch-Glazed Little Smokies"
-            subtitle="Sweet heat with a salty finish"
-            steps={[
-              'Simmer 1 cup barbecue sauce with 1/3 cup apricot jam and a splash of Scotch.',
-              'Add pinch chili flakes and a dash Worcestershire.',
-              'Toss in little smokies and cook until glossy.'
-            ]}
-          />
-        </div>
+  <SnackCard
+    title="Mason’s Escape Plan"
+    subtitle="Smoky, dangerous, unforgettable"
+    steps={[
+      'In a shaker with ice: 2 oz Scotch, 1 oz honey syrup, 1/2 oz fresh lemon juice.',
+      'Add 2 dashes Angostura bitters and a whisper of Lapsang Souchong tea for smoke.',
+      'Shake hard, strain into a rocks glass over a large cube.',
+      'Garnish with a lemon twist… or a single “VX” green candy on the rim for drama.'
+    ]}
+    note="Best enjoyed while plotting an impossible breakout."
+  />
+</div>
+
 
         <div className="col-12 col-md-6">
-          <SnackCard
-            title="Car Chase Nacho Bar"
-            subtitle="Build-your-own - crunchy, melty, chaos"
-            steps={[
-              'Lay out tortilla chips, queso, shredded jack, jalapeños, black beans, pico, crema.',
-              'Add a nitro bowl: chopped pickled pepperoncini + lime zest.',
-              'Guests assemble and blast under broiler 2-3 minutes.'
-            ]}
-          />
-        </div>
+  <SnackCard
+    title="VX Candy Alert"
+    subtitle="Diana’s tactical sugar drop"
+    steps={[
+      'Before the movie gets rolling, crack open the stash Diana sent.',
+      'They’re green, they’re sour, they’re shaped like VX gas balls from The Rock.',
+      'Pop one. Survive the blast. Keep watching.'
+    ]}
+  />
+</div>
+
       </div>
     </section>
   )

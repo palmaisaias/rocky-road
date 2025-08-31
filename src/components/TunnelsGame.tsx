@@ -2,18 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 
 type Vec = { x: number; y: number }
-type Tile = '#' | '.' | 'E' // wall, floor, exit
+type Tile = '#' | '.' | 'E'
 type MapGrid = Tile[][]
 
-const TILE = 24             // pixels per cell before scaling
-const VIEW_SCALE = 1.5      // canvas CSS upscale factor
-const FOG_RADIUS = 4        // Manhattan radius of visibility
+const TILE = 24
+const FOG_RADIUS = 4
 const SUPPLY_COUNT = 6
 const GUARD_COUNT = 2
-const STEP_LIMIT = 400      // soft timer; run out and guards speed up
+const STEP_LIMIT = 400
 
-
-// Simple fixed maze. Wide rooms + chokepoints to feel like tunnels under Alcatraz.
+// Fixed maze with wide rooms + chokepoints
 const RAW_MAP = [
   '########################',
   '#....#.....#....#......#',
@@ -38,77 +36,232 @@ const RAW_MAP = [
   '########################',
 ] as const
 
-function buildMap(): { grid: MapGrid; start: Vec; exit: Vec } {
-  const grid: MapGrid = RAW_MAP.map(row =>
-    row.split('').map(ch => (ch === '#' ? '#' : ch === 'E' ? 'E' : '.')) as Tile[]
-  )
-  // pick a start tile near top-left that's floor
-  let start: Vec = { x: 1, y: 1 }
-  for (let y = 1; y < grid.length - 1; y++) {
-    for (let x = 1; x < grid[0].length - 1; x++) {
-      if (grid[y][x] === '.') { start = { x, y }; y = grid.length; break }
-    }
-  }
-  // find exit (single E)
-  let exit = { x: 0, y: 0 }
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[0].length; x++) {
-      if (grid[y][x] === 'E') exit = { x, y }
-    }
-  }
-  return { grid, start, exit }
+const key = (v: Vec) => `${v.x},${v.y}`
+
+function safeIsMobileLike() {
+  if (typeof window === 'undefined') return false
+  if (!('matchMedia' in window)) return false
+  return window.matchMedia('(pointer: coarse)').matches
 }
 
 function manhattan(a: Vec, b: Vec) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 }
 
-function pickRandomFloors(grid: MapGrid, n: number, exclude: Vec[]): Vec[] {
-  const floors: Vec[] = []
+function neighbors(v: Vec): Vec[] {
+  return [
+    { x: v.x + 1, y: v.y },
+    { x: v.x - 1, y: v.y },
+    { x: v.x, y: v.y + 1 },
+    { x: v.x, y: v.y - 1 },
+  ]
+}
+
+function passable(t: Tile) { return t !== '#' }
+
+function floodFrom(start: Vec, grid: MapGrid): Set<string> {
+  const seen = new Set<string>()
+  const q: Vec[] = [start]
+  const H = grid.length, W = grid[0].length
+  while (q.length) {
+    const v = q.shift()!
+    const k = key(v)
+    if (seen.has(k)) continue
+    if (v.x < 0 || v.x >= W || v.y < 0 || v.y >= H) continue
+    if (!passable(grid[v.y][v.x])) continue
+    seen.add(k)
+    for (const n of neighbors(v)) q.push(n)
+  }
+  return seen
+}
+
+function findExit(grid: MapGrid): Vec {
   for (let y = 0; y < grid.length; y++) {
     for (let x = 0; x < grid[0].length; x++) {
-      if (grid[y][x] === '.') floors.push({ x, y })
+      if (grid[y][x] === 'E') return { x, y }
     }
   }
-  const key = (v: Vec) => `${v.x},${v.y}`
-  const excluded = new Set(exclude.map(key))
+  return { x: 0, y: 0 }
+}
+
+// A*: floors cost 1, walls cost 5 — carves a minimal corridor
+function pathToRegion(start: Vec, targets: Vec[], grid: MapGrid): Vec[] | null {
+  const goals = new Set(targets.map(key))
+  const W = grid[0].length, H = grid.length
+
+  const g = new Map<string, number>()
+  const came = new Map<string, string | null>()
+  type Node = { f: number; g: number; v: Vec }
+  const open: Node[] = []
+
+  const cost = (x: number, y: number) => (grid[y][x] === '#' ? 5 : 1)
+  const h = (x: number, y: number) =>
+    Math.min(...targets.map(t => Math.abs(t.x - x) + Math.abs(t.y - y)))
+
+  const sk = key(start)
+  g.set(sk, 0)
+  open.push({ f: h(start.x, start.y), g: 0, v: start })
+  came.set(sk, null)
+
+  const popMin = () => {
+    let mi = 0
+    for (let i = 1; i < open.length; i++) if (open[i].f < open[mi].f) mi = i
+    return open.splice(mi, 1)[0]
+  }
+
+  const seen = new Set<string>()
+  while (open.length) {
+    const cur = popMin()
+    const ck = key(cur.v)
+    if (seen.has(ck)) continue
+    seen.add(ck)
+    if (goals.has(ck)) {
+      const path: Vec[] = []
+      let k: string | null = ck
+      while (k) {
+        const [xs, ys] = k.split(',').map(Number)
+        path.push({ x: xs, y: ys })
+        k = came.get(k) ?? null
+      }
+      path.reverse()
+      return path
+    }
+    for (const n of neighbors(cur.v)) {
+      if (n.x < 0 || n.x >= W || n.y < 0 || n.y >= H) continue
+      const nk = key(n)
+      const tentative = cur.g + cost(n.x, n.y)
+      if (tentative < (g.get(nk) ?? Infinity)) {
+        g.set(nk, tentative)
+        came.set(nk, ck)
+        open.push({ f: tentative + h(n.x, n.y), g: tentative, v: n })
+      }
+    }
+  }
+  return null
+}
+
+function buildMap(): {
+  grid: MapGrid
+  start: Vec
+  exit: Vec
+  connected: Set<string>
+  connectedCells: Vec[]
+} {
+  // clone + normalize
+  const grid: MapGrid = RAW_MAP.map(row =>
+    row.split('').map(ch => (ch === '#' ? '#' : ch === 'E' ? 'E' : '.')) as Tile[]
+  )
+
+  const H = grid.length, W = grid[0].length
+  const exit = findExit(grid)
+
+  // find all passable components
+  const visited = new Set<string>()
+  const components: Vec[][] = []
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const k = `${x},${y}`
+      if (visited.has(k)) continue
+      if (!passable(grid[y][x])) continue
+      const seen = floodFrom({ x, y }, grid)
+      seen.forEach(s => visited.add(s))
+      components.push(Array.from(seen).map(s => {
+        const [sx, sy] = s.split(',').map(Number)
+        return { x: sx, y: sy }
+      }))
+    }
+  }
+
+  // choose the largest open region
+  let largest = components[0] ?? []
+  for (const c of components) if (c.length > largest.length) largest = c
+
+  // if exit isn’t in the largest region, carve a minimal corridor into it
+  const exitInLargest = largest.some(v => v.x === exit.x && v.y === exit.y)
+  if (!exitInLargest && largest.length) {
+    const p = pathToRegion(exit, largest, grid)
+    if (p) {
+      for (const v of p) {
+        if (grid[v.y][v.x] === '#') grid[v.y][v.x] = '.' // carve
+      }
+    }
+  }
+
+  // recompute the connected region from the exit (now bridged)
+  const connected = floodFrom(exit, grid)
+  const connectedCells: Vec[] = []
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (grid[y][x] !== '#' && connected.has(key({ x, y }))) {
+        connectedCells.push({ x, y })
+      }
+    }
+  }
+
+  // pick a start near top-left that’s in the connected region
+  let start: Vec = { x: 1, y: 1 }
+  outer: for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (grid[y][x] !== '#' && connected.has(key({ x, y }))) {
+        start = { x, y }
+        break outer
+      }
+    }
+  }
+
+  return { grid, start, exit, connected, connectedCells }
+}
+
+function pickRandom(
+  cells: Vec[],
+  n: number,
+  exclude: Vec[] = []
+): Vec[] {
+  const ex = new Set(exclude.map(key))
+  const pool = cells.filter(v => !ex.has(key(v)))
   const picks: Vec[] = []
-  while (picks.length < n && floors.length) {
-    const idx = Math.floor(Math.random() * floors.length)
-    const v = floors.splice(idx, 1)[0]
-    if (excluded.has(key(v))) continue
-    picks.push(v)
+  while (picks.length < n && pool.length) {
+    const i = Math.floor(Math.random() * pool.length)
+    picks.push(pool.splice(i, 1)[0])
   }
   return picks
 }
 
-function isMobileLike() {
-  return matchMedia && matchMedia('(pointer: coarse)').matches
-}
-
 export default function TunnelsGame() {
-  // world
+  // world (built once; includes connectivity patch)
   const base = useMemo(buildMap, [])
   const [grid] = useState<MapGrid>(base.grid)
   const [player, setPlayer] = useState<Vec>(base.start)
   const [exit] = useState<Vec>(base.exit)
+  const [connected] = useState<Set<string>>(base.connected)
+  const [connectedCells] = useState<Vec[]>(base.connectedCells)
+
+  // entities only spawn on connected tiles (guaranteed winnable)
+  const walkableConnected = useMemo(
+    () => connectedCells.filter(v => grid[v.y][v.x] === '.' || grid[v.y][v.x] === 'E'),
+    [connectedCells, grid]
+  )
+
   const [supplies, setSupplies] = useState<Vec[]>(() =>
-    pickRandomFloors(grid, SUPPLY_COUNT, [player, exit])
+    pickRandom(walkableConnected.filter(v => grid[v.y][v.x] === '.'), SUPPLY_COUNT, [player, exit])
   )
   const [guards, setGuards] = useState<Vec[]>(() =>
-    pickRandomFloors(grid, GUARD_COUNT, [player, exit, ...supplies])
+    pickRandom(walkableConnected.filter(v => grid[v.y][v.x] === '.'), GUARD_COUNT, [player, exit, ...supplies])
   )
+
   const [collected, setCollected] = useState(0)
   const [steps, setSteps] = useState(0)
   const [gameOver, setGameOver] = useState<null | 'caught' | 'escaped' | 'exhausted'>(null)
 
-  // input
-  const [showPad, setShowPad] = useState(isMobileLike())
+  const [showPad, setShowPad] = useState(safeIsMobileLike())
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // movement + collisions
   const canWalk = (v: Vec) =>
-    v.y >= 0 && v.y < grid.length && v.x >= 0 && v.x < grid[0].length && grid[v.y][v.x] !== '#'
+    v.y >= 0 &&
+    v.y < grid.length &&
+    v.x >= 0 &&
+    v.x < grid[0].length &&
+    grid[v.y][v.x] !== '#'
 
   function tryMove(dir: Vec) {
     if (gameOver) return
@@ -116,7 +269,6 @@ export default function TunnelsGame() {
     if (!canWalk(next)) return
     setPlayer(next)
     setSteps(s => s + 1)
-    // supplies pickup
     setSupplies(prev => {
       const left = prev.filter(sup => !(sup.x === next.x && sup.y === next.y))
       if (left.length !== prev.length) setCollected(c => c + 1)
@@ -139,13 +291,26 @@ export default function TunnelsGame() {
     return () => window.removeEventListener('keydown', h)
   }, [player, gameOver])
 
-  // swipe input (mobile)
+  // swipe / drag
   useEffect(() => {
     const el = canvasRef.current
     if (!el) return
     let sx = 0, sy = 0, dx = 0, dy = 0, dragging = false
-    const start = (c: Touch | MouseEvent) => { sx = 'clientX' in c ? c.clientX : 0; sy = 'clientY' in c ? c.clientY : 0; dragging = true }
-    const move = (c: Touch | MouseEvent) => { if (!dragging) return; dx = ('clientX' in c ? c.clientX : 0) - sx; dy = ('clientY' in c ? c.clientY : 0) - sy }
+    const start = (c: Touch | MouseEvent) => {
+      // @ts-expect-error touch union
+      const cx = 'clientX' in c ? c.clientX : (c?.pageX ?? 0)
+      // @ts-expect-error touch union
+      const cy = 'clientY' in c ? c.clientY : (c?.pageY ?? 0)
+      sx = cx; sy = cy; dragging = true
+    }
+    const move = (c: Touch | MouseEvent) => {
+      if (!dragging) return
+      // @ts-expect-error touch union
+      const cx = 'clientX' in c ? c.clientX : (c?.pageX ?? 0)
+      // @ts-expect-error touch union
+      const cy = 'clientY' in c ? c.clientY : (c?.pageY ?? 0)
+      dx = cx - sx; dy = cy - sy
+    }
     const end = () => {
       if (!dragging) return
       dragging = false
@@ -160,15 +325,23 @@ export default function TunnelsGame() {
     const mstart = (e: MouseEvent) => start(e)
     const mmove = (e: MouseEvent) => move(e)
     const mend = () => end()
-    el.addEventListener('touchstart', tstart); el.addEventListener('touchmove', tmove); el.addEventListener('touchend', tend)
-    el.addEventListener('mousedown', mstart); el.addEventListener('mousemove', mmove); window.addEventListener('mouseup', mend)
+    el.addEventListener('touchstart', tstart, { passive: true })
+    el.addEventListener('touchmove', tmove, { passive: true })
+    el.addEventListener('touchend', tend)
+    el.addEventListener('mousedown', mstart)
+    el.addEventListener('mousemove', mmove)
+    window.addEventListener('mouseup', mend)
     return () => {
-      el.removeEventListener('touchstart', tstart); el.removeEventListener('touchmove', tmove); el.removeEventListener('touchend', tend)
-      el.removeEventListener('mousedown', mstart); el.removeEventListener('mousemove', mmove); window.removeEventListener('mouseup', mend)
+      el.removeEventListener('touchstart', tstart)
+      el.removeEventListener('touchmove', tmove)
+      el.removeEventListener('touchend', tend)
+      el.removeEventListener('mousedown', mstart)
+      el.removeEventListener('mousemove', mmove)
+      window.removeEventListener('mouseup', mend)
     }
   }, [player, gameOver])
 
-  // guards simple pathing: drift toward player with randomness; speed up after step limit
+  // guards simple pathing toward player; speed up after step limit
   useEffect(() => {
     if (gameOver) return
     const speed = steps > STEP_LIMIT ? 120 : 220
@@ -177,17 +350,16 @@ export default function TunnelsGame() {
         const opts: Vec[] = []
         ;[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].forEach(d => {
           const n = { x: g.x + d.x, y: g.y + d.y }
-          if (canWalk(n)) opts.push(n)
+          if (canWalk(n) && connected.has(key(n))) opts.push(n)
         })
         if (!opts.length) return g
-        // bias toward player
         opts.sort((a,b) => manhattan(a, player) - manhattan(b, player))
         const choice = Math.random() < 0.7 ? opts[0] : opts[Math.floor(Math.random()*Math.min(3, opts.length))]
         return choice
       }))
     }, speed)
     return () => clearInterval(id)
-  }, [player, steps, gameOver])
+  }, [player, steps, gameOver, connected])
 
   // win/lose checks
   useEffect(() => {
@@ -201,15 +373,18 @@ export default function TunnelsGame() {
     if (steps > STEP_LIMIT + 150) setGameOver('exhausted')
   }, [player, guards, collected, steps, gameOver, exit])
 
-  // draw
+  // draw (crisp + responsive: DPR-scaled, CSS width 100%)
   useEffect(() => {
     const cvs = canvasRef.current
     if (!cvs) return
     const W = grid[0].length * TILE
     const H = grid.length * TILE
-    cvs.width = W
-    cvs.height = H
+    const DPR = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1
+    cvs.width = Math.floor(W * DPR)
+    cvs.height = Math.floor(H * DPR)
     const ctx = cvs.getContext('2d')!
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+
     // background
     ctx.fillStyle = '#0a0f14'
     ctx.fillRect(0, 0, W, H)
@@ -227,7 +402,6 @@ export default function TunnelsGame() {
         if (t === '#') {
           ctx.fillStyle = '#1e2a33'
           ctx.fillRect(x*TILE, y*TILE, TILE, TILE)
-          // wall texture
           ctx.fillStyle = '#243744'
           ctx.fillRect(x*TILE, y*TILE+TILE-6, TILE, 2)
         } else if (t === 'E') {
@@ -280,20 +454,31 @@ export default function TunnelsGame() {
     grad.addColorStop(1, 'rgba(0,0,0,0.55)')
     ctx.fillStyle = grad
     ctx.fillRect(0,0,W,H)
-
   }, [grid, player, supplies, guards, collected])
 
   function reset() {
-    const fresh = buildMap()
-    setPlayer(fresh.start)
-    setSupplies(pickRandomFloors(grid, SUPPLY_COUNT, [fresh.start, fresh.exit]))
-    setGuards(pickRandomFloors(grid, GUARD_COUNT, [fresh.start, fresh.exit]))
+    const newPlayer = base.start
+    const newSupplies = pickRandom(
+      walkableConnected.filter(v => grid[v.y][v.x] === '.'),
+      SUPPLY_COUNT,
+      [newPlayer, exit]
+    )
+    const newGuards = pickRandom(
+      walkableConnected.filter(v => grid[v.y][v.x] === '.'),
+      GUARD_COUNT,
+      [newPlayer, exit, ...newSupplies]
+    )
+    setPlayer(newPlayer)
+    setSupplies(newSupplies)
+    setGuards(newGuards)
     setCollected(0)
     setSteps(0)
     setGameOver(null)
   }
 
   const canExit = collected === SUPPLY_COUNT
+  const PIX_W = grid[0].length * TILE
+  const PIX_H = grid.length * TILE
 
   return (
     <section className="container my-5">
@@ -302,8 +487,10 @@ export default function TunnelsGame() {
           <div className="tunnels-wrap p-2 border rounded-3 bg-dark position-relative">
             <canvas
               ref={canvasRef}
-              className="w-100"
-              style={{ imageRendering: 'pixelated', transform: `scale(${VIEW_SCALE})`, transformOrigin: 'top left' }}
+              // responsive: fits column width, keeps aspect
+              style={{ width: '100%', height: 'auto', imageRendering: 'pixelated' }}
+              width={PIX_W}
+              height={PIX_H}
               aria-label="Tunnels game canvas"
               role="img"
             />
@@ -346,11 +533,11 @@ export default function TunnelsGame() {
             <div className="card-body">
               <h5 className="card-title" style={{ fontFamily: 'Oxanium, sans-serif' }}>Tunnels: Supply Run</h5>
               <p className="card-text">
-                Navigate the tunnels, collect all supplies, then reach the exit hatch. Guards patrol. Stay in the dark; move smart.
+                Collect all supplies, then hit the hatch. Guards patrol. Stay in the dark; move smart.
               </p>
               <ul className="small mb-3">
                 <li>Desktop: Arrow keys or WASD</li>
-                <li>Mobile: Swipe on the map or use the D-pad</li>
+                <li>Mobile: Swipe or use the D-pad</li>
                 <li>Fog of war limits what you can see</li>
                 <li>Exit unlocks after all supplies are collected</li>
               </ul>
