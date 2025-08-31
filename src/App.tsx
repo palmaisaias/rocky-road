@@ -20,7 +20,7 @@ const poster = `data:image/svg+xml;utf8,
   <g fill='%23cbd5e1' font-family='monospace'>
     <text x='60' y='120' font-size='42'>SCREENING ROOM - THE ROCK</text>
     <text x='60' y='180' font-size='22' fill='%23a7f3d0'>Palma Siblings Ops</text>
-    <text x='60' y='260' font-size='18'>Drop MP4 at /public/video/the-rock-trailer.mp4</text>
+    <text x='60' y='260' font-size='18'>Winners go home and fuck the prom queen...</text>
   </g>
 </svg>`
 

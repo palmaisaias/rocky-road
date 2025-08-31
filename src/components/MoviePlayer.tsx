@@ -25,7 +25,7 @@ const MoviePlayer = forwardRef<MoviePlayerHandle, Props>(function MoviePlayer(
     <section className="card-frame">
       <header className="d-flex align-items-center justify-content-between mb-2">
         <h2 className="h-ox fw-bold fs-4 mb-0">Screening Room</h2>
-        <span className="text-secondary small">MP4 or HLS supported</span>
+        <span className="text-secondary small">Grab your pet rock</span>
       </header>
 
       <div className="position-relative overflow-hidden rounded" style={{ background: '#0b0f0e' }}>
