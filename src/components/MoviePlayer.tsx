@@ -37,7 +37,7 @@ const MoviePlayer = forwardRef<MoviePlayerHandle, Props>(function MoviePlayer(
           preload="metadata"
           poster={posterDataUrl}
         >
-          <source src="/video/the-rock-trailer.mp4" type="video/mp4" />
+          <source src="https://green-vx-balls.sfo3.cdn.digitaloceanspaces.com/rockAndRoll.mp4" type="video/mp4" />
           Your browser does not support the video tag.
         </video>
       </div>
