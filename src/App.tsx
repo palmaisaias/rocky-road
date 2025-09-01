@@ -6,6 +6,7 @@ import MoviePlayer from './components/MoviePlayer'
 import type { MoviePlayerHandle } from './components/MoviePlayer'
 import BackgroundMusic from './components/BackgroundMusic'
 import TunnelsGame from './components/TunnelsGame'
+import AudioPlayerCard from './components/AudioPlayerCard'
 
 const poster = `data:image/svg+xml;utf8,
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 675'>
@@ -55,6 +56,7 @@ export default function App() {
 
       {!showPlayer ? (
         <>
+          <AudioPlayerCard />
           <HummelMessage />
           <SnackSuggestions />
           <TunnelsGame />

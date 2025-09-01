@@ -1,0 +1,30 @@
+/* AudioPlayerCard.css */
+.ap-center-wrap {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;            /* breathing room around the card */
+  box-sizing: border-box;
+}
+
+.ap-card {
+  width: 100%;
+  max-width: 560px;
+  padding: 18px 20px;       /* inner spacing ("border spacing") */
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+
+.ap-audio {
+  display: block;
+  width: 100%;
+}
+
+/* optional: subtle focus ring for keyboard users */
+.ap-card:focus-within {
+  outline: 2px solid #c7d2fe;
+  outline-offset: 2px;
+}
